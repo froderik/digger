@@ -9,8 +9,9 @@ overview = File.open target_dir + '/index.textile', 'w'
 overview.write "h1. All tables\n\n"
 
 puts "reading database"
-
 tables = DB.tables
+tables.sort!
+
 puts "generating textile"
 tables.each do |t|
   overview.write "\"#{t}\":#{t}.html\n"  # "tablename":/tablename.html
@@ -19,14 +20,31 @@ tables.each do |t|
   detail.write "h1. #{t.to_s}\n\n"
   
   schema = DB.schema t
-  schema.each do |c|
-    detail.write "h2. #{c[0]}\n\n"
-    detail.write "|_. Key|_. Value|\n"
-    attrs = c[1]
-    attrs.each do |k,v|
-      detail.write "|#{k}|#{v}|\n"
+  schema.sort! do |c1, c2|
+    if c1[1][:primary_key] != c2[1][:primary_key]
+      sort = -1 if c1[1][:primary_key]
+      sort = 1  if c2[1][:primary_key]
+    else
+      sort = 0
     end
-    detail.write "\n"
+    if c1[1][:allow_null] != c2[1][:allow_null]
+      sort = 1  if c1[1][:allow_null]
+      sort = -1 if c2[1][:allow_null]
+    else
+      sort = 0
+    end
+    if sort == 0
+      sort = c1[0] <=> c2[0]
+    end
+    sort
+  end
+  schema.each do |c|
+    detail.write "|*#{c[0]}*|"
+    attrs = c[1]
+    detail.write "|#{attrs[:type]}|"
+    detail.write ' pk ' if attrs[:primary_key] #== 'true'
+    detail.write ' null allowed ' if attrs[:allow_null] #== 'true'
+    detail.write "|\n"
     print '.'
   end
   
