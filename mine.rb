@@ -20,7 +20,7 @@ def sort_2_columns one, other
 end
 
 def textile_for_column column, dataset
-  column_descr = "|*#{column[0]}*|"
+  column_descr = "|*#{textile_link_to_self(column[0],'column_')}*|"
   attrs = column[1]
   column_descr << "|#{attrs[:type]}|"
   column_descr << ' pk ' if attrs[:primary_key]
@@ -43,6 +43,10 @@ def convert_textile_to_html source_file, target_file
   html_file.close
 end
 
+def textile_link_to_self name, prefix = ""
+  "\"#{name}\":#{prefix}#{name}.html" # "name":/name.html
+end
+
 raise "usage run.sh db_url target_dir" if(ARGV.length < 2) 
 DB = Sequel.connect ARGV[0]
 target_dir = ARGV[1]
@@ -55,8 +59,10 @@ tables = DB.tables
 tables.sort!
 
 puts "generating textile"
+lookup = {} # key is a string and value an array of targets
 tables.each do |t|
-  overview.write "\"#{t}\":#{t}.html\n"  # "tablename":/tablename.html
+  overview.write textile_link_to_self t 
+  overview.write "\n" 
 
   detail = File.open "#{target_dir}/#{t}.textile", 'w'
   detail.write "h1. #{t.to_s}\n\n"
@@ -66,10 +72,25 @@ tables.each do |t|
   schema.sort! { |c1, c2| sort_2_columns c1, c2 }
 
   first_ten = DB[t].reverse.first(10)  
-  schema.each { |c| detail.write( textile_for_column c, first_ten ) }
+  schema.each do |c| 
+    detail.write( textile_for_column c, first_ten ) 
+    keys = [c[0]]
+#    c[0].split( '_' ).each { |part| keys << part }
+    keys.each do |k|
+      lookup[k] = lookup[k] || []
+      lookup[k] << t
+    end
+  end
   
   detail.close
   print '.'
+end
+
+lookup.keys.each do |k|
+  column_file = File.open "#{target_dir}/column_#{k}.textile", "w"
+  column_file.write "\nh3. #{k}\n\n"
+  lookup[k].each { |target| column_file.write "* #{textile_link_to_self( target )}\n" }
+  column_file.close
 end
 
 overview.close
